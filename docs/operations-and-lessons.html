@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Operations and lessons — HC x Hub technical documentation.">
+  <meta name="color-scheme" content="light dark">
+  <title>Operations and lessons — HC x Hub</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <nav class="docs-topbar" aria-label="Breadcrumb and documentation navigation">
+    <a class="crumb" href="../index.html">Portfolio</a>
+    <a href="./">Documentation</a>
+    <a href="architecture.html">Architecture</a>
+    <a href="compute-and-services.html">Compute &amp; services</a>
+    <a href="storage-and-backup.html">Storage &amp; backup</a>
+    <a href="networking-and-security.html">Networking &amp; security</a>
+    <a href="operations-and-lessons.html">Operations &amp; lessons</a>
+    <a href="hardware.html">Hardware &amp; specifications</a>
+    <a href="verification-and-scope.html">Verification &amp; scope</a>
+  </nav>
+  <main class="docs-main" id="content">
+    <p class="gen-note">Generated from <code>docs/operations-and-lessons.md</code> · public-safe, evidence-backed</p>
+<h1>Operations and lessons</h1>
+<h2 id="operating-method">Operating method</h2>
+<p>The lab is managed with an evidence-first loop:</p>
+<ol>
+<li>Observe the management plane and establish the full inventory.</li>
+<li>Inspect the affected guest, service, mount and dependency chain.</li>
+<li>Form a narrow hypothesis.</li>
+<li>Test without changing unrelated components.</li>
+<li>Make the smallest reversible correction.</li>
+<li>Verify service state and an application-level response.</li>
+</ol>
+<p>This prevents a running container or green systemd unit from being mistaken for a healthy application.</p>
+<h2 id="case-note-gpu-availability-after-reboot">Case note: GPU availability after reboot</h2>
+<p><strong>Problem:</strong> Jellyfin needs the Intel render device, and device ownership can differ after a host restart.</p>
+<p><strong>Decision:</strong> Pass only the required render device into the service LXC and run an idempotent pre-start ownership hook.</p>
+<p><strong>Why:</strong> The service remains isolated from the hypervisor while hardware transcoding avoids avoidable CPU load.</p>
+<p><strong>Lesson:</strong> The boot path is part of infrastructure correctness. A manual post-reboot fix is an undocumented dependency.</p>
+<h2 id="case-note-application-state-on-nfs">Case note: application state on NFS</h2>
+<p><strong>Problem:</strong> Media, cloud and photo datasets grow faster than small guest root disks and need a consistent storage owner.</p>
+<p><strong>Decision:</strong> Keep application runtimes in dedicated LXCs while mounting durable datasets from TrueNAS.</p>
+<p><strong>Why:</strong> Compute can be rebuilt or upgraded independently, and large data does not inflate every guest backup.</p>
+<p><strong>Lesson:</strong> External mounts must appear in the health model and the recovery plan. A guest archive does not automatically protect data outside its root filesystem.</p>
+<h2 id="case-note-dns-database-bloat">Case note: DNS database bloat</h2>
+<p><strong>Problem:</strong> The Pi-hole root filesystem reached 80% usage. Logs and package caches were not large enough to explain it.</p>
+<p><strong>Evidence:</strong> The long-term query database was approximately 2.3 GiB. SQLite page accounting showed roughly 91% of its pages on the freelist: reusable internally, but not returned to the filesystem.</p>
+<p><strong>Decision:</strong> Do not delete history or run an unsafe in-place vacuum with insufficient temporary space. First identify a safe maintenance path: add temporary headroom, back up the database, stop the writer, compact, restart and verify DNS.</p>
+<p><strong>Lesson:</strong> Logical retention and physical compaction are separate controls. Maintenance operations themselves need capacity planning.</p>
+<h2 id="case-note-backup-confidence">Case note: backup confidence</h2>
+<p><strong>Problem:</strong> A schedule in a UI proves intent, not recovery.</p>
+<p><strong>Decision:</strong> Verify the configured scope, recent task status, artifact presence and retention independently.</p>
+<p><strong>Evidence:</strong> The active Linux service guests were in scope, seven generations were present for sampled guests, and the recent task history showed successful completion.</p>
+<p><strong>Lesson:</strong> Recovery confidence still requires an application-aware restore drill and a copy outside the storage failure domain.</p>
+<h2 id="case-note-separating-integrity-history-and-recovery">Case note: separating integrity, history and recovery</h2>
+<p><strong>Problem:</strong> RAID, snapshots and backups are often treated as interchangeable even though they address different failures.</p>
+<p><strong>Evidence:</strong> The storage pool was healthy RAIDZ1 with a clean completed scrub. Daily recursive snapshots, scheduled SMART tests and Proxmox guest archives were present, but no replication or cloud-sync task was configured.</p>
+<p><strong>Decision:</strong> Document each protection layer separately: RAIDZ1 for disk-failure tolerance, scrubs and SMART tests for media-health evidence, snapshots for local history, and guest archives for service recovery.</p>
+<p><strong>Lesson:</strong> None of those layers creates an independent disaster-recovery copy by itself. Recovery still needs restore testing, a separate failure domain and reviewed power protection.</p>
+<h2 id="current-operations-backlog">Current operations backlog</h2>
+<ul>
+<li>Reclaim or expand constrained guest filesystems after attributing their consumers.</li>
+<li>Formalize a repeatable restore drill and record recovery time.</li>
+<li>Add an independent/off-site backup copy.</li>
+<li>Validate the storage load-balancing bond against upstream switch behavior and failure tests.</li>
+<li>Review dataset encryption and storage power protection.</li>
+<li>Define and test policy-enforced network segmentation.</li>
+<li>Review compatibility exceptions that require privileged or unconfined LXC settings.</li>
+</ul>
+    <footer class="site-footer">
+      <p><a href="../index.html">← Back to portfolio</a></p>
+    </footer>
+  </main>
+</body>
+</html>

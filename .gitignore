@@ -1,0 +1,30 @@
+# Private discovery evidence
+.audit/
+
+# Credentials and secret-bearing files
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.ovpn
+*.conf.private
+*credentials*
+*secret*
+*token*
+
+# Local tooling
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+__pycache__/
+*.py[cod]
+
+# Local preview/build artifacts
+_site/
+dist/
+node_modules/

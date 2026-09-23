@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Networking and security — HC x Hub technical documentation.">
+  <meta name="color-scheme" content="light dark">
+  <title>Networking and security — HC x Hub</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <nav class="docs-topbar" aria-label="Breadcrumb and documentation navigation">
+    <a class="crumb" href="../index.html">Portfolio</a>
+    <a href="./">Documentation</a>
+    <a href="architecture.html">Architecture</a>
+    <a href="compute-and-services.html">Compute &amp; services</a>
+    <a href="storage-and-backup.html">Storage &amp; backup</a>
+    <a href="networking-and-security.html">Networking &amp; security</a>
+    <a href="operations-and-lessons.html">Operations &amp; lessons</a>
+    <a href="hardware.html">Hardware &amp; specifications</a>
+    <a href="verification-and-scope.html">Verification &amp; scope</a>
+  </nav>
+  <main class="docs-main" id="content">
+    <p class="gen-note">Generated from <code>docs/networking-and-security.md</code> · public-safe, evidence-backed</p>
+<h1>Networking and security</h1>
+<h2 id="verified-topology">Verified topology</h2>
+<p>The routed edge is a Banana Pi R4 running OpenWrt on ARM64. The verified data path is:</p>
+<pre class="diagram"><code>Internet
+   |
+provider / optical handoff
+   |
+subscriber VLAN 100
+   |
+OpenWrt · Banana Pi BPI-R4  --(inbound DNAT)--&gt;  WireGuard LXC
+   |
+NAT · 10 GbE SFP LAN
+   |
+UGREEN CM753 · unmanaged switch
+   |
+   +-- Proxmox / GEEKOM  (hosts Pi-hole DNS/DHCP)
+   |
+   +-- TrueNAS interface A (2.5 GbE) --\
+   |                                    &gt; LOADBALANCE software bond --&gt; TrueNAS
+   +-- TrueNAS interface B (2.5 GbE) --/
+   |
+   +-- TP-Link Omada AP --&gt; Wi-Fi clients
+   |
+   +-- other LAN clients
+</code></pre>
+<p>Internal addresses, public addresses, MACs, names, forwarding ports and destination details are intentionally absent.</p>
+<h2 id="replacing-the-isp-router">Replacing the ISP router</h2>
+<p><strong>Owner-observed motivation (not independently audited):</strong> the ISP-provided router limited control over the local network — in particular DNS behavior and advanced network configuration. The decision was to replace it with a fully controlled OpenWrt edge router placed behind the optical handoff, and to reproduce the ISP's WAN requirements on it: subscriber VLAN 100, DHCP IPv4, routing, NAT and firewalling.</p>
+<p><strong>Result:</strong> full control over WAN configuration, routing, NAT, firewall policy, DNS/DHCP integration (Pi-hole as LAN authority), port forwarding (the WireGuard DNAT), and a path toward future VLAN/network segmentation. The historical behavior of the ISP device is owner-observed context, not audit evidence; everything about the replacement edge is verified in the sections below.</p>
+<h2 id="wan-architecture">WAN architecture</h2>
+<p><strong>VERIFIED</strong></p>
+<ul>
+<li>The active WAN path uses the router's SFP WAN interface at 10 Gb/s, full duplex.</li>
+<li>An 802.1Q subinterface with VLAN ID 100 carries the WAN service.</li>
+<li>IPv4 is obtained by DHCP.</li>
+<li>A global IPv4 address and IPv4 default route were present at review time.</li>
+<li>The WAN firewall zone performs masquerading; active nftables NAT actions were observed.</li>
+<li>A DHCPv6 interface is configured on the same VLAN-tagged device.</li>
+<li>The DHCPv6 interface was down, with no delegated prefix and no IPv6 default route at review time.</li>
+</ul>
+<p><strong>INFERRED</strong></p>
+<ul>
+<li>VLAN 100 is the subscriber handoff expected by the upstream provider. The router proves the VLAN and physical SFP path, but it does not identify or describe the provider-side optical equipment.</li>
+</ul>
+<p><strong>NOT VERIFIED</strong></p>
+<ul>
+<li>Provider-side configuration, optical signal state and carrier policy beyond the negotiated Ethernet link.</li>
+<li>Internet-side reachability of any local listener; no external probe was performed.</li>
+</ul>
+<h2 id="lan-architecture">LAN architecture</h2>
+<p><strong>VERIFIED</strong></p>
+<ul>
+<li>A single LAN bridge contains three copper LAN ports and one SFP LAN port.</li>
+<li>The SFP LAN link was active at 10 Gb/s, full duplex.</li>
+<li>The three router copper LAN ports had no carrier at review time.</li>
+<li>No router-side bridge VLAN sections were configured.</li>
+<li>The firewall contained only LAN and WAN zones; no service, guest, storage or management zones were present.</li>
+<li>The only configured zone forwarding was LAN to WAN.</li>
+<li>A ULA IPv6 prefix was configured for the LAN.</li>
+</ul>
+<p>The result is a flat LAN at the router. Application separation currently comes from Proxmox/LXC/Docker boundaries, not network segmentation.</p>
+<h2 id="dns-and-dhcp">DNS and DHCP</h2>
+<p><strong>VERIFIED</strong></p>
+<ul>
+<li>OpenWrt's LAN DHCP scope is disabled.</li>
+<li>Pi-hole is configured as the router's LAN DNS resolver over both IPv4 and IPv6.</li>
+<li>The existing Pi-hole audit independently verified that Pi-hole FTL is actively serving DNS and DHCP.</li>
+<li>dnsmasq and odhcpd still run on OpenWrt for router-local DNS and IPv6 control-plane functions, but OpenWrt is not the LAN DHCP authority.</li>
+</ul>
+<p>This division keeps routing and firewalling on OpenWrt while centralizing client naming, lease management and DNS filtering on Pi-hole.</p>
+<h2 id="firewall-and-nat">Firewall and NAT</h2>
+<p><strong>VERIFIED</strong></p>
+<p>The global firewall defaults are input reject, forward reject and output accept, with SYN-flood protection enabled. Zone-level policy overrides matter:</p>
+<ul>
+<li><strong>LAN zone:</strong> input, output and forwarding accept; no masquerading.</li>
+<li><strong>WAN zone:</strong> input reject, output accept and forwarding drop; masquerading enabled.</li>
+<li><strong>Forwarding:</strong> LAN to WAN only.</li>
+<li><strong>Port-forward architecture:</strong> one inbound UDP DNAT rule forwards WireGuard traffic from WAN to a LAN service.</li>
+<li>Runtime nftables state contained active WAN masquerade and DNAT actions.</li>
+<li>No guest/service VLAN zones or east-west segmentation rules were observed.</li>
+</ul>
+<p>The follow-up audit verified two hardening changes made through LuCI: WAN input changed from accept to reject, and unnecessary LAN-zone masquerading was removed. Runtime nftables state changed accordingly while the WireGuard DNAT remained present.</p>
+<h2 id="vpn-and-remote-access">VPN and remote access</h2>
+<p>WireGuard does not terminate on OpenWrt. No WireGuard interface or peer configuration was present on the router. Instead:</p>
+<ol>
+<li>OpenWrt receives the inbound UDP flow.</li>
+<li>A DNAT rule forwards it to the dedicated WireGuard LXC.</li>
+<li>The LXC terminates the encrypted tunnel and routes the VPN network.</li>
+</ol>
+<p>The existing LXC audit found one configured peer. No peer key, endpoint, private key, preshared key or allowed-address set was retrieved during the router audit.</p>
+<p>Application download traffic remains separate: qBittorrent uses Gluetun as an outbound VPN boundary. Administrative remote access and application egress are therefore different paths.</p>
+<h2 id="wi-fi-responsibility">Wi-Fi responsibility</h2>
+<p><strong>VERIFIED</strong></p>
+<ul>
+<li>Three wireless radio profiles exist in OpenWrt configuration, including 5 GHz and 6 GHz profiles.</li>
+<li>Every configured radio and AP interface is disabled.</li>
+<li>No wireless PHY or runtime Wi-Fi interface was active.</li>
+<li>No SSID or Wi-Fi key was queried.</li>
+</ul>
+<p>OpenWrt is not providing Wi-Fi. The owner identifies the external wireless device as a TP-Link Omada access point connected through the UGREEN switch.</p>
+<p><strong>NOT VERIFIED</strong></p>
+<ul>
+<li>SSIDs, radio tuning, client isolation or VLAN assignment on the external AP/controller.</li>
+<li>Wireless roaming and policy behavior.</li>
+</ul>
+<h2 id="physical-network-findings">Physical-network findings</h2>
+<p>The router verifies a 10 GbE SFP WAN path and a separate 10 GbE SFP LAN uplink. The owner identifies the downstream device as a UGREEN CM753 unmanaged switch and the wireless device as a TP-Link Omada access point.</p>
+<p>The TrueNAS audit independently verified two 2.5 GbE interfaces configured as a <code>LOADBALANCE</code> software bond on TrueNAS. This does not establish a 5 Gb/s single-client path and does not prove switch-side aggregation or failover behavior. From the router side, those bond members are behind the unmanaged switch and are not individually observable. OpenWrt therefore cannot confirm:</p>
+<ul>
+<li>switch compatibility with the bond mode;</li>
+<li>traffic distribution across TrueNAS links;</li>
+<li>per-link failover behavior;</li>
+<li>port-isolation behavior inside the switch.</li>
+</ul>
+<p>Those require switch telemetry or controlled failure testing.</p>
+<h2 id="router-management-security">Router management security</h2>
+<p><strong>VERIFIED</strong></p>
+<ul>
+<li>Dropbear SSH is enabled and listening broadly rather than being bound to a named trusted interface.</li>
+<li>SSH password authentication and root password authentication are enabled.</li>
+<li>LuCI/uHTTPd serves both HTTP and HTTPS on broad listeners.</li>
+<li>HTTP-to-HTTPS redirection is disabled.</li>
+<li>A DNS listener was present on the WAN/global address.</li>
+<li>The WAN zone input policy is reject.</li>
+<li>UPnP was neither enabled nor running, and no UPnP package was observed.</li>
+<li>The router runs an OpenWrt snapshot build rather than a stable release channel.</li>
+</ul>
+<p>Because no internet-side test was performed, public reachability is not asserted as an observed end-to-end fact. WAN input reject now provides the primary perimeter control, but broad listeners, root password authentication and plaintext HTTP remain defense-in-depth gaps on trusted or VPN-accessible networks.</p>
+<h3 id="remaining-hardening-backlog-not-applied-by-this-audit">Remaining hardening backlog — not applied by this audit</h3>
+<ul>
+<li>Restrict SSH and LuCI listeners to trusted LAN or VPN paths.</li>
+<li>Disable SSH password/root-password authentication after validating key-only recovery access.</li>
+<li>Disable plaintext LuCI HTTP or enforce HTTPS redirection.</li>
+<li>Verify externally that the router is not acting as an open DNS resolver.</li>
+<li>Keep WAN exceptions narrow and periodically verify the effective nftables ruleset.</li>
+<li>Introduce policy-enforced VLANs for management, services, storage, guests and wireless clients where the downstream hardware supports them.</li>
+<li>Replace or regularly refresh the snapshot firmware through a planned, recoverable upgrade process.</li>
+</ul>
+<p>These are findings only. No setting was changed by the audit.</p>
+<h2 id="service-naming-and-application-ingress">Service naming and application ingress</h2>
+<p>The public domain <strong>hcxhub.com</strong> is managed through <strong>Cloudflare</strong> for DNS. Internally, services are reached by meaningful hostnames (for example <code>proxmox.hcxhub.com</code>, <code>grafana.hcxhub.com</code>, <code>immich.hcxhub.com</code>, <code>homarr.hcxhub.com</code>) instead of memorized IP:port combinations. <strong>Nginx Proxy Manager</strong> provides the centralized HTTP/HTTPS reverse-proxy tier that maps those service hostnames to internal backends, while <strong>Pi-hole</strong> remains the LAN DNS/DHCP authority.</p>
+<p>The benefits are operational: consistent service naming, centralized application ingress, backend addressing separated from user-facing URLs, and simpler day-to-day access.</p>
+<p><strong>A DNS hostname does not mean public exposure.</strong> The documented access model keeps services on private/VPN-reachable paths; hostnames are an internal naming and ingress convenience, not a statement that a service is published to the internet. No public reverse-proxy forwarding was observed on the router.</p>
+<h2 id="evidence-classification">Evidence classification</h2>
+<h3 id="verified">VERIFIED</h3>
+<ul>
+<li>Banana Pi R4/OpenWrt platform</li>
+<li>SFP WAN and LAN link state and negotiated speed</li>
+<li>VLAN 100, DHCP IPv4, default route and NAT</li>
+<li>Inactive WAN IPv6 path at review time</li>
+<li>Flat LAN bridge and absence of router-side VLAN segmentation</li>
+<li>Pi-hole DNS integration and disabled OpenWrt LAN DHCP</li>
+<li>Firewall zones, forwarding and WireGuard DNAT architecture</li>
+<li>Disabled OpenWrt Wi-Fi radios</li>
+<li>Router management listeners and authentication settings</li>
+<li>Two TrueNAS 2.5 GbE interfaces and the TrueNAS <code>LOADBALANCE</code> software-bond configuration</li>
+</ul>
+<h3 id="owner-supplied">OWNER-SUPPLIED</h3>
+<ul>
+<li>The downstream switch is a UGREEN CM753 unmanaged switch.</li>
+<li>The OpenWrt 10 GbE SFP LAN path connects to that switch.</li>
+<li>The TP-Link Omada access point connects downstream through that switch and serves Wi-Fi clients.</li>
+<li>Proxmox/GEEKOM, TrueNAS and other LAN clients attach to the same physical switching layer.</li>
+</ul>
+<h3 id="inferred">INFERRED</h3>
+<ul>
+<li>The upstream optical handoff/provider requires VLAN 100.</li>
+</ul>
+<h3 id="not-verified">NOT VERIFIED</h3>
+<ul>
+<li>Provider-side optical configuration</li>
+<li>Actual public internet reachability of management or DNS listeners</li>
+<li>External AP/controller VLAN and security policy</li>
+<li>Downstream switch forwarding, isolation or link-aggregation behavior</li>
+<li>TrueNAS bond behavior from the router side</li>
+<li>End-to-end WireGuard connectivity during this router-only phase</li>
+</ul>
+<h2 id="public-disclosure-policy">Public disclosure policy</h2>
+<p>The repository excludes:</p>
+<ul>
+<li>public and internal IP addresses;</li>
+<li>MAC addresses, internal hostnames and stable identifiers;</li>
+<li>Wi-Fi SSIDs and passwords;</li>
+<li>WireGuard private, preshared and peer keys;</li>
+<li>peer endpoints and allowed-address policy;</li>
+<li>forwarding port numbers and internal DNAT destinations;</li>
+<li>credentials, tokens, cookies and secret-bearing configuration;</li>
+<li>exact management URLs and firewall rule payloads.</li>
+</ul>
+    <footer class="site-footer">
+      <p><a href="../index.html">← Back to portfolio</a></p>
+    </footer>
+  </main>
+</body>
+</html>
