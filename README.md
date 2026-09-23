@@ -4,6 +4,8 @@ A public, security-sanitized portfolio describing a real homelab built around Pr
 
 The repository is intentionally documentation-first. It explains why the system is structured this way, records operating lessons and distinguishes verified evidence from assumptions.
 
+**Hosting:** This repository contains the website source, but does not host the public website. A separate public host will be configured later; there is no live website URL yet.
+
 ## Highlights
 
 - Compact Proxmox VE host with an Intel hybrid-core CPU, 32 GiB memory class and NVMe storage
@@ -20,7 +22,7 @@ The repository is intentionally documentation-first. It explains why the system 
 
 ## Site
 
-The GitHub Pages site is plain HTML and CSS with a tiny optional JavaScript enhancement (active-section highlighting). Architecture is shown as plain-text ASCII diagrams in `<pre>` blocks — no framework, Mermaid runtime or analytics. The in-page wordmark loads Sora from Google Fonts, with a system-font fallback.
+The static site is plain HTML and CSS with a tiny optional JavaScript enhancement (active-section highlighting). Architecture is shown as plain-text ASCII diagrams in `<pre>` blocks — no framework, Mermaid runtime or analytics. The in-page wordmark loads Sora from Google Fonts, with a system-font fallback.
 
 The portfolio homepage (`index.html`) is the concise showcase; `docs/*.html` are generated technical deep-dives built from the Markdown sources in `docs/` by `.audit/build_docs.py` (private tooling, not published).
 
