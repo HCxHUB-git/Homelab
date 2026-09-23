@@ -1,8 +1,8 @@
-# Security policy for this portfolio
+# Security policy for this documentation
 
 ## Scope
 
-This repository is documentation and a static GitHub Pages site. It does not contain deployable production credentials or direct access to the homelab.
+This repository contains sanitized homelab documentation. It does not contain deployable production credentials or direct access to the homelab.
 
 ## Disclosure rules
 

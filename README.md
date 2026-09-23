@@ -1,10 +1,10 @@
-# HC x Hub — homelab engineering portfolio
+# Homelab
 
-A public, security-sanitized portfolio describing a real homelab built around Proxmox VE, Linux containers, Docker, TrueNAS-backed NFS storage, private remote access, DNS, reverse proxying, monitoring and scheduled backups.
+A public, security-sanitized technical record of a homelab built around Proxmox VE, Linux containers, Docker, TrueNAS-backed NFS storage, private remote access, DNS, reverse proxying, monitoring and scheduled backups.
 
-The repository is intentionally documentation-first. It explains why the system is structured this way, records operating lessons and distinguishes verified evidence from assumptions.
+This repository documents the architecture, design decisions, operations, and lessons learned. It distinguishes verified evidence from assumptions. It is not a website repository.
 
-**Hosting:** This repository contains the website source, but does not host the public website. A separate public host will be configured later; there is no live website URL yet.
+The separate website source is maintained in a private repository for future hosting. There is no live public website yet.
 
 ## Highlights
 
@@ -20,23 +20,6 @@ The repository is intentionally documentation-first. It explains why the system 
 - Daily compressed guest snapshots with a seven-generation retention policy
 - Intel graphics passthrough for hardware-accelerated media transcoding
 
-## Site
-
-The static site is plain HTML and CSS with a tiny optional JavaScript enhancement (active-section highlighting). Architecture is shown as plain-text ASCII diagrams in `<pre>` blocks — no framework, Mermaid runtime or analytics. The in-page wordmark loads Sora from Google Fonts, with a system-font fallback.
-
-The portfolio homepage (`index.html`) is the concise showcase; `docs/*.html` are generated technical deep-dives built from the Markdown sources in `docs/` by `.audit/build_docs.py` (private tooling, not published).
-
-Preview the public-only build locally (never serve the repository root on a network; it contains private `.audit/` material):
-
-```bash
-cd ~/homelab-portfolio
-python3 .audit/build_public.py
-cd _site
-python3 -m http.server 8000 --bind 127.0.0.1
-```
-
-Open `http://localhost:8000/`.
-
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -49,11 +32,11 @@ Open `http://localhost:8000/`.
 
 ## Publication policy
 
-This public version excludes credentials, keys, cookies, tokens, internal addresses, MAC addresses, host identifiers, exact routes, certificate material, storage export paths and secret-bearing configuration. The raw read-only audit is stored under `.audit/` and is excluded from Git.
+This public version excludes credentials, keys, cookies, tokens, internal addresses, MAC addresses, host identifiers, exact routes, certificate material, storage export paths and secret-bearing configuration. Private read-only audit material is not included in this repository.
 
 ## Current limitations
 
-- The portfolio does not claim policy-enforced LAN segmentation.
+- This documentation does not claim policy-enforced LAN segmentation.
 - The current router policy has a flat LAN without service VLANs; management listeners and password-based root SSH remain broader than necessary even though WAN input is now reject-by-default.
 - Backup artifacts and recent job success were verified; a restore drill was not.
 - No independent replication, cloud-sync or off-site recovery copy was configured at review time.
