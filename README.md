@@ -4,7 +4,7 @@ A public, security-sanitized technical record of a homelab built around Proxmox 
 
 This repository documents the architecture, design decisions, operations, and lessons learned. It distinguishes verified evidence from assumptions. It is not a website repository.
 
-The separate website source is maintained in a private repository for future hosting. There is no live public website yet.
+The website is [temporarily hosted on GitHub Pages](https://hcxhub-git.github.io/homelab-website/) until a separate host is ready. Its source is maintained in a separate repository.
 
 ## Highlights
 
